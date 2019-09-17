@@ -30,24 +30,24 @@ pub struct TestServer<'a> {
     s: &'a str,
 }
 
-impl<'s, 'a: 's> NewService for &'s TestServer<'a> {
+impl<'a> NewService for TestServer<'a> {
     type ReqBody = Body;
     type ResBody = Body;
     type Error = http::Error;
     type InitError = http::Error;
-    type Future = Box<dyn Future<Item = Self::Service, Error = Self::Error> + Send + 's>;
-    type Service = TestService<'s>;
+    type Future = Box<dyn Future<Item = Self::Service, Error = Self::Error> + Send + 'a>;
+    type Service = TestService<'a>;
     fn new_service(&self) -> Self::Future {
         Box::new(future::ok(TestService { s: &self.s }))
     }
 }
 
-impl<'a> TestServer<'a> {
-    pub const fn new(s: &'_ str) -> TestServer<'_> {
+impl TestServer<'static> {
+    pub const fn new(s: &'static str) -> Self {
         TestServer { s }
     }
 
-    pub fn start(&'static self) {
+    pub fn start(self) -> ! {
         // This is our socket address...
         let addr = ([127, 0, 0, 1], 4000).into();
 
@@ -57,11 +57,11 @@ impl<'a> TestServer<'a> {
 
         // Run this server for... forever!
         hyper::rt::run(server);
+        std::process::exit(0)
     }
 }
 
-static SERVER: TestServer = TestServer::new("world");
-
 fn main() {
-    SERVER.start();
+    let server: TestServer = TestServer::new("world");
+    server.start();
 }
