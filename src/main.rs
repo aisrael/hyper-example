@@ -1,49 +1,53 @@
 use futures::future;
+use futures::future::IntoFuture;
 use hyper::rt::Future;
-
 use hyper::service::{NewService, Service};
 use hyper::{Body, Request, Response, Server, StatusCode};
 
 /// The service
-pub struct TestService {}
+pub struct TestService<'s> {
+    s: &'s str,
+}
 
-impl Service for TestService {
+impl<'s> Service for TestService<'s> {
     type ReqBody = Body;
     type ResBody = Body;
-    type Error = hyper::Error;
-    type Future = Box<dyn Future<Item = Response<Body>, Error = hyper::Error> + Send>;
+    type Error = http::Error;
+    type Future = Box<dyn Future<Item = Response<Body>, Error = Self::Error> + Send + 's>;
 
     fn call(&mut self, _req: Request<Self::ReqBody>) -> Self::Future {
-        Box::new(future::ok(
+        Box::new(
             Response::builder()
                 .status(StatusCode::OK)
-                .body("Ok".into())
-                .unwrap(),
-        ))
+                .body(format!("Hello, {}!", &self.s).into())
+                .into_future(),
+        )
     }
 }
 
 /// The server
-pub struct TestServer {}
+pub struct TestServer<'a> {
+    s: &'a str,
+}
 
-impl NewService for TestServer {
+impl<'s, 'a: 's> NewService for &'s TestServer<'a> {
     type ReqBody = Body;
     type ResBody = Body;
-    type Error = hyper::Error;
-    type InitError = hyper::Error;
-    type Future = Box<Future<Item = Self::Service, Error = Self::InitError> + Send>;
-    type Service = TestService;
+    type Error = http::Error;
+    type InitError = http::Error;
+    type Future = Box<dyn Future<Item = Self::Service, Error = Self::Error> + Send + 's>;
+    type Service = TestService<'s>;
     fn new_service(&self) -> Self::Future {
-        Box::new(future::ok(TestService {}))
+        Box::new(future::ok(TestService { s: &self.s }))
     }
 }
 
-impl TestServer {
-    pub fn new() -> TestServer {
-        TestServer {}
+impl<'a> TestServer<'a> {
+    pub const fn new(s: &'_ str) -> TestServer<'_> {
+        TestServer { s }
     }
 
-    pub fn start(self) {
+    pub fn start(&'static self) {
         // This is our socket address...
         let addr = ([127, 0, 0, 1], 4000).into();
 
@@ -56,7 +60,8 @@ impl TestServer {
     }
 }
 
+static SERVER: TestServer = TestServer::new("world");
+
 fn main() {
-    let test = TestServer::new();
-    test.start();
+    SERVER.start();
 }
