@@ -3,51 +3,60 @@ use futures::future::IntoFuture;
 use hyper::rt::Future;
 use hyper::service::{NewService, Service};
 use hyper::{Body, Request, Response, Server, StatusCode};
+use std::sync::Arc;
 
-/// The service
-pub struct TestService<'s> {
-    s: &'s str,
+struct Config {
+    message: String,
 }
 
-impl<'s> Service for TestService<'s> {
+/// The service
+struct TestService {
+    config: Arc<Config>,
+}
+
+impl Service for TestService {
     type ReqBody = Body;
     type ResBody = Body;
     type Error = http::Error;
-    type Future = Box<dyn Future<Item = Response<Body>, Error = Self::Error> + Send + 's>;
+    type Future = Box<dyn Future<Item = Response<Body>, Error = Self::Error> + Send>;
 
     fn call(&mut self, _req: Request<Self::ReqBody>) -> Self::Future {
         Box::new(
             Response::builder()
                 .status(StatusCode::OK)
-                .body(format!("Hello, {}!", &self.s).into())
+                .body(format!("Hello, {}!", &self.config.message).into())
                 .into_future(),
         )
     }
 }
 
 /// The server
-pub struct TestServer<'a> {
-    s: &'a str,
+struct TestServer {
+    config: Arc<Config>,
 }
 
-impl<'a> NewService for TestServer<'a> {
+impl NewService for TestServer {
     type ReqBody = Body;
     type ResBody = Body;
     type Error = http::Error;
     type InitError = http::Error;
-    type Future = Box<dyn Future<Item = Self::Service, Error = Self::Error> + Send + 'a>;
-    type Service = TestService<'a>;
+    type Future = Box<dyn Future<Item = Self::Service, Error = Self::Error> + Send>;
+    type Service = TestService;
     fn new_service(&self) -> Self::Future {
-        Box::new(future::ok(TestService { s: &self.s }))
+        Box::new(future::ok(TestService {
+            config: self.config.clone(),
+        }))
     }
 }
 
-impl TestServer<'static> {
-    pub const fn new(s: &'static str) -> Self {
-        TestServer { s }
+impl TestServer {
+    fn new(config: Config) -> Self {
+        TestServer {
+            config: Arc::new(config),
+        }
     }
 
-    pub fn start(self) -> ! {
+    fn start(self) -> ! {
         // This is our socket address...
         let addr = ([127, 0, 0, 1], 4000).into();
 
@@ -62,6 +71,9 @@ impl TestServer<'static> {
 }
 
 fn main() {
-    let server: TestServer = TestServer::new("world");
+    let config = Config {
+        message: "world".to_owned(),
+    };
+    let server: TestServer = TestServer::new(config);
     server.start();
 }
