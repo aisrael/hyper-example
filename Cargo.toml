@@ -1,10 +1,11 @@
 [package]
 name = "hyper-example"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Alistair A. Israel <aisrael@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-http = "0.1.18"
-hyper = "0.12.35"
-futures = "0.1"
+futures = "0.3"
+http = "0.2.1"
+hyper = { version = "0.13", path = "/Users/aisrael/workspaces/rust/hyper" }
+tokio = { version = "0.2", features = ["full"] }
