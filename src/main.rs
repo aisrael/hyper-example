@@ -16,9 +16,15 @@ struct TestService {
     config: Arc<Config>,
 }
 
+async fn do_hello(config: Arc<Config>) -> Result<Response<Body>, hyper::Error> {
+    let s = format!("Hello, {}!", config.message);
+    let response = Response::new(Body::from(s));
+    Ok(response)
+}
+
 impl Service<Request<Body>> for TestService {
     type Response = Response<Body>;
-    type Error = http::Error;
+    type Error = hyper::Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -26,14 +32,7 @@ impl Service<Request<Body>> for TestService {
     }
 
     fn call(&mut self, _req: Request<Body>) -> Self::Future {
-        let s = format!("Hello, {}!", self.config.message);
-        let response = Response::new(Body::from(s));
-
-        // create a response in a future.
-        let fut = async { Ok(response) };
-
-        // Return the response as an immediate future
-        Box::pin(fut)
+        Box::pin(do_hello(self.config.clone()))
     }
 }
 
